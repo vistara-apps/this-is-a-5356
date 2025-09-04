@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import AuthModal from './components/auth/AuthModal';
 import Sidebar from './components/Sidebar';
 import Canvas from './components/Canvas';
 import Timeline from './components/Timeline';
@@ -9,9 +11,12 @@ import TemplateLibrary from './components/TemplateLibrary';
 import AssetUploader from './components/AssetUploader';
 import ProjectDashboard from './components/ProjectDashboard';
 
-function App() {
+function AppContent() {
+  const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
   const [showWizard, setShowWizard] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState('signin');
   const [currentProject, setCurrentProject] = useState(null);
   const [projects, setProjects] = useState([]);
   const [selectedElement, setSelectedElement] = useState(null);
@@ -19,35 +24,49 @@ function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [animationTimer, setAnimationTimer] = useState(null);
 
-  // Sample projects for demo
+  // Handle authentication state changes
   useEffect(() => {
-    const sampleProjects = [
-      {
-        id: 'demo-1',
-        name: 'Welcome Animation',
-        createdAt: '2024-01-15T10:00:00Z',
-        updatedAt: '2024-01-16T14:30:00Z',
-        duration: 5,
-        elements: [
-          {
-            id: 'welcome-text',
-            type: 'text',
-            name: 'Welcome Text',
-            content: 'Welcome to AnimateFlow!',
-            x: 0, y: 0, scale: 1, rotation: 0,
-            fontSize: 32, color: '#ffffff',
-            keyframes: [
-              { time: 0, x: -300, y: 0, scale: 0.5, rotation: 0 },
-              { time: 1.5, x: 0, y: 0, scale: 1, rotation: 0 },
-              { time: 3.5, x: 0, y: 0, scale: 1, rotation: 0 },
-              { time: 5, x: 300, y: 0, scale: 0.5, rotation: 0 }
-            ]
-          }
-        ]
+    if (!loading) {
+      if (!user && activeTab !== 'home') {
+        // Redirect to home if user is not authenticated and trying to access protected content
+        setActiveTab('home');
       }
-    ];
-    setProjects(sampleProjects);
-  }, []);
+    }
+  }, [user, loading, activeTab]);
+
+  // Sample projects for demo (will be replaced with real data from backend)
+  useEffect(() => {
+    if (user) {
+      const sampleProjects = [
+        {
+          id: 'demo-1',
+          name: 'Welcome Animation',
+          createdAt: '2024-01-15T10:00:00Z',
+          updatedAt: '2024-01-16T14:30:00Z',
+          duration: 5,
+          elements: [
+            {
+              id: 'welcome-text',
+              type: 'text',
+              name: 'Welcome Text',
+              content: 'Welcome to AnimateFlow!',
+              x: 0, y: 0, scale: 1, rotation: 0,
+              fontSize: 32, color: '#ffffff',
+              keyframes: [
+                { time: 0, x: -300, y: 0, scale: 0.5, rotation: 0 },
+                { time: 1.5, x: 0, y: 0, scale: 1, rotation: 0 },
+                { time: 3.5, x: 0, y: 0, scale: 1, rotation: 0 },
+                { time: 5, x: 300, y: 0, scale: 0.5, rotation: 0 }
+              ]
+            }
+          ]
+        }
+      ];
+      setProjects(sampleProjects);
+    } else {
+      setProjects([]);
+    }
+  }, [user]);
 
   // Animation playback
   useEffect(() => {
@@ -78,6 +97,11 @@ function App() {
   }, [isPlaying, currentProject]);
 
   const handleNewProject = () => {
+    if (!user) {
+      setAuthMode('signup');
+      setShowAuthModal(true);
+      return;
+    }
     setShowWizard(true);
   };
 
@@ -95,6 +119,25 @@ function App() {
     setCurrentProject(newProject);
     setActiveTab('timeline');
     setShowWizard(false);
+  };
+
+  const handleSignInClick = () => {
+    setAuthMode('signin');
+    setShowAuthModal(true);
+  };
+
+  const handleSignUpClick = () => {
+    setAuthMode('signup');
+    setShowAuthModal(true);
+  };
+
+  const handleTabChange = (tab) => {
+    if (!user && tab !== 'home') {
+      setAuthMode('signin');
+      setShowAuthModal(true);
+      return;
+    }
+    setActiveTab(tab);
   };
 
   const createElementsFromTemplate = (templateId, customization) => {
@@ -346,13 +389,28 @@ function App() {
     }
   };
 
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen gradient-bg flex items-center justify-center">
+        <div className="text-center text-white">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Loading AnimateFlow...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen gradient-bg">
       <div className="flex h-screen">
         <Sidebar 
           activeTab={activeTab} 
-          onTabChange={setActiveTab}
+          onTabChange={handleTabChange}
           onNewProject={handleNewProject}
+          user={user}
+          onSignIn={handleSignInClick}
+          onSignUp={handleSignUpClick}
         />
         
         <div className="flex-1 flex">
@@ -380,7 +438,22 @@ function App() {
           onClose={() => setShowWizard(false)}
         />
       </Modal>
+
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        initialMode={authMode}
+      />
     </div>
+  );
+}
+
+// Main App component with AuthProvider
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 
